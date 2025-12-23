@@ -70,7 +70,7 @@ def evaluate_board(board:chess.Board):
         else:
             position_score = 0 # Simplified: add other tables later
 
-        position_score=0
+        # position_score=0
             
         total_score = value + position_score
 
@@ -124,7 +124,7 @@ def get_best_move(board:chess.Board, depth):
     
     # print(f"Thinking (Depth {depth})...")
     best=[move for move in board.legal_moves if move in board.legal_moves]
-    # random.shuffle(best)
+    random.shuffle(best)
     # best_move= random.choice(best)
     for move in best:
         board.push(move)
