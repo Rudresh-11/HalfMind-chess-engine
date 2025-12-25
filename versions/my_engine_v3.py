@@ -187,6 +187,8 @@ def sort_moves(board: chess.Board, depth=0, killers=None):
     # We return the list directly to be iterated over
     return sorted(board.legal_moves, key=move_scorer, reverse=True)
 
+
+
 def evaluate_board(board: chess.Board):
     if board.is_checkmate():
         # Prefer faster mates: subtract ply count (not implemented here easily without passing ply)
@@ -238,11 +240,60 @@ def evaluate_board(board: chess.Board):
 
     return evaluation
 
+
+def quiescence(board: chess.Board, alpha, beta, maximizing_player):
+    """
+    Revised Quiescence to match Minimax (Min/Max separation)
+    instead of Negamax.
+    """
+    stand_pat = evaluate_board(board)
+
+    if maximizing_player:
+        # White (wants positive scores)
+        if stand_pat >= beta:
+            return beta
+        if stand_pat > alpha:
+            alpha = stand_pat
+    else:
+        # Black (wants negative scores)
+        if stand_pat <= alpha:
+            return alpha
+        if stand_pat < beta:
+            beta = stand_pat
+
+    # Use your existing sort_moves logic
+    for move in sort_moves(board):
+        # Only check "loud" moves (Captures and Checks)
+        if not board.is_capture(move) and not board.gives_check(move):
+            continue
+
+        board.push(move)
+        
+        # Recursive call passing the turn flag (flipping True/False)
+        score = quiescence(board, alpha, beta, not maximizing_player)
+        
+        board.pop()
+
+        if maximizing_player:
+            if score >= beta:
+                return beta
+            if score > alpha:
+                alpha = score
+        else:
+            if score <= alpha:
+                return alpha
+            if score < beta:
+                beta = score
+
+    return alpha if maximizing_player else beta
 # --- PART 2: THE BRAIN (Minimax Search) ---
 
 def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
     # Base case: If we reached depth 0 or game is over, evaluate the board
-    if depth == 0 or board.is_game_over():
+    if depth == 0:
+        return quiescence(board, alpha, beta,maximizing_player)
+
+    if board.is_game_over():
         return evaluate_board(board)
 
     legal=sort_moves(board)
@@ -276,11 +327,12 @@ def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
         return min_eval
 
 
-def get_best_move_v2(board: chess.Board, depth):
+def get_best_move_v3(board: chess.Board, depth):
+    best_move = None
     max_eval = -math.inf
     min_eval = math.inf
     is_white = board.turn
-
+    
     EPSILON = 15  # centipawns
 
     candidates = []
@@ -294,21 +346,17 @@ def get_best_move_v2(board: chess.Board, depth):
     # return
     for move in legal_moves:
         board.push(move)
-        eval_score = minimax(board, depth-1, -math.inf, math.inf, not is_white)
+        eval_score = minimax(board, depth-1 , -math.inf, math.inf, not is_white)
         board.pop()
-
+        
         if is_white:
-            if eval_score >= max_eval - EPSILON:
-                if eval_score > max_eval:
-                    candidates = []
-                    max_eval = eval_score
-                candidates.append(move)
+            if eval_score > max_eval:
+                max_eval = eval_score
+                best_move = move
         else:
-            if eval_score <= min_eval + EPSILON:
-                if eval_score < min_eval:
-                    candidates = []
-                    min_eval = eval_score
-                candidates.append(move)
-
-    return random.choice(candidates)
+            if eval_score < min_eval:
+                min_eval = eval_score
+                best_move = move
+                
+    return best_move
 
