@@ -276,7 +276,7 @@ def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
         return min_eval
 
 
-def get_best_move(board: chess.Board, depth):
+def get_best_move_v2(board: chess.Board, depth):
     best_move = None
     max_eval = -math.inf
     min_eval = math.inf
