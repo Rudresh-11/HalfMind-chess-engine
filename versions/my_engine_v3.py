@@ -238,9 +238,9 @@ def evaluate_board(board: chess.Board):
     return evaluation
 
 
-def quiescence(board: chess.Board, alpha, beta, maximizing_player, depth=0):
+def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, depth=0):
     
-    # Safety Limit: Stop Q-search if it goes too deep (e.g. 10 ply extra)
+    # Safety Limit: Stop Q-search if it goes too deep
     if depth > 2:
         return evaluate_board(board)
 
@@ -254,22 +254,25 @@ def quiescence(board: chess.Board, alpha, beta, maximizing_player, depth=0):
         if stand_pat < beta: beta = stand_pat
 
 
-    legal_moves = [m for m in board.legal_moves if board.is_capture(m)]
-    # legal_captures.sort(key=lambda m: PIECE_VALUES.get(board.piece_at(m.to_square).piece_type, 0) if board.piece_at(m.to_square) else 0, reverse=True)
-    # legal_moves=sort_moves(board)
+    # In quiescence search, we evaluate forcing moves (captures, promotions) 
+    # to ensure the static evaluation is on a "quiet" position.
+    legal_moves = sort_moves(board, depth, killers)
 
     for move in legal_moves:
-        board.push(move)
-        # score = quiescence(board, alpha, beta, not maximizing_player)
-        score = quiescence(board, alpha, beta, not maximizing_player, depth + 1)
-        board.pop()
+        # We only consider captures and promotions. We must iterate through all
+        # sorted moves because a non-forcing move (like a check) might be 
+        # ordered before a capture, so we cannot break the loop early.
+        if board.is_capture(move) or move.promotion:
+            board.push(move)
+            score = quiescence(board, alpha, beta, not maximizing_player, killers, depth + 1)
+            board.pop()
 
-        if maximizing_player:
-            if score >= beta: return beta
-            if score > alpha: alpha = score
-        else:
-            if score <= alpha: return alpha
-            if score < beta: beta = score
+            if maximizing_player:
+                if score >= beta: return beta
+                if score > alpha: alpha = score
+            else:
+                if score <= alpha: return alpha
+                if score < beta: beta = score
 
     return alpha if maximizing_player else beta
 
@@ -280,7 +283,7 @@ def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
     
     # Base case: If we reached depth 0 or game is over, evaluate the board
     if depth == 0:
-        val = quiescence(board, alpha, beta, maximizing_player)
+        val = quiescence(board, alpha, beta, maximizing_player, killers)
         return val
 
     if board.is_game_over():
@@ -370,6 +373,5 @@ def get_best_move_v3(board: chess.Board, depth):
             elif eval_score==min_eval:
                 best_move.append(move)
                 
-    return random.choice(best_move)
-    
+    return random.choice(best_move)  
 
