@@ -9,6 +9,8 @@ CAPTURE_BONUS = 20000        # Base bonus to separate captures from quiet moves
 KILLER_1_BONUS = 9000        # Logic #7: Killers above quiet moves
 KILLER_2_BONUS = 8000
 BAD_CAPTURE_PENALTY = 25000  # Logic #6: Enough to sink bad captures below zer
+TT = {}  #Tranpostions
+killers={}
 
 PIECE_VALUES = {
     chess.PAWN: 100,
@@ -57,7 +59,7 @@ kingtable = [
     -20,-30,-30,-40,-40,-30,-30,-20,
     -10,-20,-20,-20,-20,-20,-20,-10,
         20, 20,  0,  0,  0,  0, 20, 20,
-        20, 30, 10,  0,  0, 10, 30, 20]
+        20, 30, 10,  0,  -5, 10, 30, 20]
 # Rooks prefer the 7th rank (to attack pawns) and central files
 rooktable = [
     0,  0,  0,  0,  0,  0,  0,  0,
@@ -81,15 +83,15 @@ queentable = [
     -20,-10,-10, -5, -5,-10,-10,-20]
 
 
-# def get_piece_value(piece_type):
-#     return PIECE_VALUES.get(piece_type, 0)
 
 def sort_moves(board: chess.Board, depth=0, killers=None):
     """
     Sorts moves based on the strict engineering checklist:
     Checks > Promotions > Winning Captures > Equal Captures > Killers > Quiet Improving > Quiet Junk > Losing Captures
     """
-    
+    moves = list(board.legal_moves)
+    if len(moves) <= 3:
+        return moves
     # Get killer moves for this depth if they exist
     killer_moves = []
     if killers and depth in killers:
@@ -101,8 +103,6 @@ def sort_moves(board: chess.Board, depth=0, killers=None):
         # Cache boolean states for speed & logic flow
         is_capture = board.is_capture(move)
         is_promotion = bool(move.promotion)
-        # Logic #4: "Checks must come before captures"
-        # Note: board.gives_check() is O(N) but required for this checklist reliability
         is_check = board.gives_check(move) 
 
         # --- TIER 1: FORCING MOVES (Checks, Promotions, Captures) ---
@@ -185,22 +185,19 @@ def sort_moves(board: chess.Board, depth=0, killers=None):
 
     # Logic #10: "Use sorted_moves in minimax"
     # We return the list directly to be iterated over
+
     return sorted(board.legal_moves, key=move_scorer, reverse=True)
 
 
 
 def evaluate_board(board: chess.Board):
     if board.is_checkmate():
-        # Prefer faster mates: subtract ply count (not implemented here easily without passing ply)
-        # Simple fix: High score
         return -9999 if board.turn else 9999
     
-    # Covers Stalemate, Insufficient Material, Repetition
     if board.is_game_over(): 
         return 0
 
     evaluation = 0
-    # Optimization: Use piece_map to avoid looping 64 squares
     for square, piece in board.piece_map().items():
         
         # 1. Material Value
@@ -241,63 +238,60 @@ def evaluate_board(board: chess.Board):
     return evaluation
 
 
-def quiescence(board: chess.Board, alpha, beta, maximizing_player):
-    """
-    Revised Quiescence to match Minimax (Min/Max separation)
-    instead of Negamax.
-    """
+def quiescence(board: chess.Board, alpha, beta, maximizing_player, depth=0):
+    
+    # Safety Limit: Stop Q-search if it goes too deep (e.g. 10 ply extra)
+    if depth > 2:
+        return evaluate_board(board)
+
     stand_pat = evaluate_board(board)
 
     if maximizing_player:
-        # White (wants positive scores)
-        if stand_pat >= beta:
-            return beta
-        if stand_pat > alpha:
-            alpha = stand_pat
+        if stand_pat >= beta: return beta
+        if stand_pat > alpha: alpha = stand_pat
     else:
-        # Black (wants negative scores)
-        if stand_pat <= alpha:
-            return alpha
-        if stand_pat < beta:
-            beta = stand_pat
+        if stand_pat <= alpha: return alpha
+        if stand_pat < beta: beta = stand_pat
 
-    # Use your existing sort_moves logic
-    for move in sort_moves(board):
-        # Only check "loud" moves (Captures and Checks)
-        if not board.is_capture(move) and not board.gives_check(move):
-            continue
 
+    legal_moves = [m for m in board.legal_moves if board.is_capture(m)]
+    # legal_captures.sort(key=lambda m: PIECE_VALUES.get(board.piece_at(m.to_square).piece_type, 0) if board.piece_at(m.to_square) else 0, reverse=True)
+    # legal_moves=sort_moves(board)
+
+    for move in legal_moves:
         board.push(move)
-        
-        # Recursive call passing the turn flag (flipping True/False)
-        score = quiescence(board, alpha, beta, not maximizing_player)
-        
+        # score = quiescence(board, alpha, beta, not maximizing_player)
+        score = quiescence(board, alpha, beta, not maximizing_player, depth + 1)
         board.pop()
 
         if maximizing_player:
-            if score >= beta:
-                return beta
-            if score > alpha:
-                alpha = score
+            if score >= beta: return beta
+            if score > alpha: alpha = score
         else:
-            if score <= alpha:
-                return alpha
-            if score < beta:
-                beta = score
+            if score <= alpha: return alpha
+            if score < beta: beta = score
 
     return alpha if maximizing_player else beta
-# --- PART 2: THE BRAIN (Minimax Search) ---
 
 def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
+    key = (board._transposition_key(), depth)
+    if key in TT:
+        return TT[key]
+    
     # Base case: If we reached depth 0 or game is over, evaluate the board
     if depth == 0:
-        return quiescence(board, alpha, beta,maximizing_player)
+        val = quiescence(board, alpha, beta, maximizing_player)
+        return val
 
     if board.is_game_over():
-        return evaluate_board(board)
+        val = evaluate_board(board)
+        TT[key] = val
+        return val
 
-    legal=sort_moves(board)
+    legal=sort_moves(board,depth,killers)
 
+    cutoff=False
+    best=None
     if maximizing_player: # White's turn (wants positive score)
         max_eval = -math.inf
         for move in legal:
@@ -310,8 +304,14 @@ def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
             # Alpha-Beta Pruning (Optimization)
             alpha = max(alpha, eval)
             if beta <= alpha:
+                cutoff=True
+                if not board.is_capture(move):
+                    if depth not in killers: killers[depth] = []
+                    if move not in killers[depth]:
+                        killers[depth].insert(0, move)
+                        killers[depth] = killers[depth][:2]
                 break # Prune
-        return max_eval
+        best=max_eval
     else: # Black's turn (wants negative score)
         min_eval = math.inf
         for move in legal:
@@ -323,19 +323,27 @@ def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
             
             beta = min(beta, eval)
             if beta <= alpha:
+                cutoff=True
+                if not board.is_capture(move):
+                    if depth not in killers: killers[depth] = []
+                    if move not in killers[depth]:
+                        killers[depth].insert(0, move)
+                        killers[depth] = killers[depth][:2]
                 break
-        return min_eval
+        best=min_eval
+
+    if not cutoff:
+        TT[key]=best
+    return best
 
 
 def get_best_move_v3(board: chess.Board, depth):
-    best_move = None
+    global killers
+    killers={}
+    best_move = []
     max_eval = -math.inf
     min_eval = math.inf
     is_white = board.turn
-    
-    EPSILON = 15  # centipawns
-
-    candidates = []
     
     # Define a smarter sorter that uses PSTs
     # Sort moves: Captures -> Good Positional Moves -> Bad Positional Moves
@@ -352,11 +360,16 @@ def get_best_move_v3(board: chess.Board, depth):
         if is_white:
             if eval_score > max_eval:
                 max_eval = eval_score
-                best_move = move
+                best_move = [move]
+            elif eval_score==max_eval:
+                best_move.append(move)
         else:
             if eval_score < min_eval:
                 min_eval = eval_score
-                best_move = move
+                best_move = [move]
+            elif eval_score==min_eval:
+                best_move.append(move)
                 
-    return best_move
+    return random.choice(best_move)
+    
 
