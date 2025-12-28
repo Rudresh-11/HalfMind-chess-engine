@@ -84,7 +84,7 @@ queentable = [
 
 
 
-def sort_moves(board: chess.Board, depth=0, killers=None):
+def sort_moves(board: chess.Board, depth=0, killers=None,hash_move=None):
     """
     Sorts moves based on the strict engineering checklist:
     Checks > Promotions > Winning Captures > Equal Captures > Killers > Quiet Improving > Quiet Junk > Losing Captures
@@ -186,7 +186,11 @@ def sort_moves(board: chess.Board, depth=0, killers=None):
     # Logic #10: "Use sorted_moves in minimax"
     # We return the list directly to be iterated over
 
-    return sorted(board.legal_moves, key=move_scorer, reverse=True)
+    moves= sorted(board.legal_moves, key=move_scorer, reverse=True)
+    if hash_move and hash_move in moves:
+        moves.remove(hash_move)
+        moves.insert(0, hash_move)
+    return moves
 
 
 
@@ -241,8 +245,7 @@ def evaluate_board(board: chess.Board):
 def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, depth=0):
     
     # Safety Limit: Stop Q-search if it goes too deep
-    if depth > 2:
-        return evaluate_board(board)
+    if depth > 4: return evaluate_board(board)
 
     stand_pat = evaluate_board(board)
 
@@ -276,69 +279,70 @@ def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, dept
 
     return alpha if maximizing_player else beta
 
-def minimax(board:chess.Board, depth, alpha, beta, maximizing_player):
-    key = (board._transposition_key(), depth)
+def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
+    alpha_orig = alpha
+    beta_orig = beta
+    key = board._transposition_key()
+    hash_move=None
+
+    # TT READ
     if key in TT:
-        return TT[key]
+        tt_value, tt_move, tt_depth, tt_flag = TT[key]
+        hash_move = tt_move # Use this for sorting!
+        if tt_depth >= depth:
+            if tt_flag == "EXACT": return tt_value
+            elif tt_flag == "LOWERBOUND": alpha = max(alpha, tt_value)
+            elif tt_flag == "UPPERBOUND": beta = min(beta, tt_value)
+            if alpha >= beta: return tt_value
     
-    # Base case: If we reached depth 0 or game is over, evaluate the board
-    if depth == 0:
-        val = quiescence(board, alpha, beta, maximizing_player, killers)
-        return val
+    if depth == 0: return quiescence(board, alpha, beta, maximizing_player,killers=killers)
+    if board.is_game_over(): return evaluate_board(board)
 
-    if board.is_game_over():
-        val = evaluate_board(board)
-        TT[key] = val
-        return val
+    # Pass hash_move to sorter
+    legal = sort_moves(board, depth, killers,hash_move)
 
-    legal=sort_moves(board,depth,killers)
+    best_val = -math.inf if maximizing_player else math.inf
+    best_move_this_node = None # Track the move!
 
-    cutoff=False
-    best=None
-    if maximizing_player: # White's turn (wants positive score)
-        max_eval = -math.inf
-        for move in legal:
-            board.push(move) # Make move
-            # print(f"Evaluating {move}... for white")
-            eval = minimax(board, depth - 1, alpha, beta, False) # Recursive call
-            board.pop() # Undo move (backtrack)
-            max_eval = max(max_eval, eval)
-            
-            # Alpha-Beta Pruning (Optimization)
+    for move in legal:
+        board.push(move)
+        eval = minimax(board, depth - 1, alpha, beta, not maximizing_player)
+        board.pop()
+
+        if maximizing_player:
+            if eval > best_val:
+                best_val = eval
+                best_move_this_node = move
             alpha = max(alpha, eval)
             if beta <= alpha:
-                cutoff=True
-                if not board.is_capture(move):
-                    if depth not in killers: killers[depth] = []
-                    if move not in killers[depth]:
-                        killers[depth].insert(0, move)
-                        killers[depth] = killers[depth][:2]
-                break # Prune
-        best=max_eval
-    else: # Black's turn (wants negative score)
-        min_eval = math.inf
-        for move in legal:
-            board.push(move)
-            # print(f"Evaluating {move}... for black")
-            eval = minimax(board, depth - 1, alpha, beta, True)
-            board.pop()
-            min_eval = min(min_eval, eval)
-            
-            beta = min(beta, eval)
-            if beta <= alpha:
-                cutoff=True
+                # Killer Logic
                 if not board.is_capture(move):
                     if depth not in killers: killers[depth] = []
                     if move not in killers[depth]:
                         killers[depth].insert(0, move)
                         killers[depth] = killers[depth][:2]
                 break
-        best=min_eval
+        else:
+            if eval < best_val:
+                best_val = eval
+                best_move_this_node = move
+            beta = min(beta, eval)
+            if beta <= alpha:
+                # Killer Logic
+                if not board.is_capture(move):
+                    if depth not in killers: killers[depth] = []
+                    if move not in killers[depth]:
+                        killers[depth].insert(0, move)
+                        killers[depth] = killers[depth][:2]
+                break
 
-    if not cutoff:
-        TT[key]=best
-    return best
+    # TT WRITE (Include best_move)
+    flag = "EXACT"
+    if best_val <= alpha_orig: flag = "UPPERBOUND"
+    elif best_val >= beta_orig: flag = "LOWERBOUND"
 
+    TT[key] = (best_val, best_move_this_node, depth, flag)
+    return best_val
 
 def get_best_move_v3(board: chess.Board, depth):
     global killers
