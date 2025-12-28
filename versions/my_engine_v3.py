@@ -344,21 +344,18 @@ def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     TT[key] = (best_val, best_move_this_node, depth, flag)
     return best_val
 
-def get_best_move_v3(board: chess.Board, depth):
-    global killers
-    killers={}
-    best_move = []
+def get_best_move_v3(board: chess.Board, depth, hash_move=None):
+    best_moves = []
     max_eval = -math.inf
     min_eval = math.inf
     is_white = board.turn
     
-    # Define a smarter sorter that uses PSTs
-    # Sort moves: Captures -> Good Positional Moves -> Bad Positional Moves
-    legal_moves = sort_moves(board)
-    # legal_moves = [move for move in board.legal_moves]
-    # print("sorted legal moves: ", legal_moves_sorted)
-    # print("legal moves: ", legal_moves)
-    # return
+    # 1. Get Sorted Moves
+    legal_moves = list(sort_moves(board, depth, killers, hash_move))
+    
+    if not legal_moves:
+        return 0, None # Handle stalemate/mate check outside or return static eval
+
     for move in legal_moves:
         board.push(move)
         eval_score = minimax(board, depth-1 , -math.inf, math.inf, not is_white)
@@ -367,15 +364,63 @@ def get_best_move_v3(board: chess.Board, depth):
         if is_white:
             if eval_score > max_eval:
                 max_eval = eval_score
-                best_move = [move]
-            elif eval_score==max_eval:
-                best_move.append(move)
+                best_moves = [move]
+            elif eval_score == max_eval:
+                best_moves.append(move)
         else:
             if eval_score < min_eval:
                 min_eval = eval_score
-                best_move = [move]
-            elif eval_score==min_eval:
-                best_move.append(move)
-                
-    return random.choice(best_move)  
+                best_moves = [move]
+            elif eval_score == min_eval:
+                best_moves.append(move)
+    
+    final_score = max_eval if is_white else min_eval
+    
+    # Safety check if best_moves is empty (rare)
+    if not best_moves: return final_score, None
+    
+    return final_score, random.choice(best_moves)
+
+def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
+    global TT, killers
+
+    # Reset ONCE per move
+    TT.clear()
+    killers.clear()
+
+    best_move = None
+    best_score = None
+
+    start_time = time.time()
+    current_depth = 1
+
+    while True:
+        if time.time() - start_time > time_limit:
+            break
+
+        # Root search with previous best as hash move
+        score, move = get_best_move_v3(board, current_depth, best_move)
+        if move is None:
+            break
+
+        if (
+            best_score is not None
+            and move == best_move
+            and ((abs(score) - abs(best_score)) < 20)
+            and current_depth >= 3
+        ):
+            break
+        best_move = move
+        best_score = score
+
+        # Stop on mate
+        if abs(score) > 9000:
+            break
+
+        print(f"Info: Depth {current_depth} score {score} best {move}")
+        current_depth += 1
+        if current_depth > depth:
+            break
+
+    return best_move
 
