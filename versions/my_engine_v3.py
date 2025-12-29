@@ -22,14 +22,15 @@ PIECE_VALUES = {
 }
 
 pawntable = [
-    0, 0, 0, 0, 0, 0, 0, 0,
-    5, 10, 10, -20, -20, 10, 10, 5,
-    5, -5, -10, 0, 0, -10, -5, 5,
-    0, 0, 0, 20, 20, 0, 0, 0,
-    5, 5, 10, 25, 25, 10, 5, 5,
-    10, 10, 20, 30, 30, 20, 10, 10,
-    50, 50, 50, 50, 50, 50, 50, 50,
-    0, 0, 0, 0, 0, 0, 0, 0]
+    50,   50,   50,   50,   50,   50,   50,   50,
+    30,  30,  40,  45,  45,  40,  30,  30,
+    25,  25,  35,  40,  40,  35,  25,  25,
+    20,  20,  30,  35,  35,  30,  20,  20,
+    15,  15,  25,  30,  30,  25,  15,  15,
+    10,  10,  15,  20,  20,  15,  10,  10,
+    5,   5,   5,   5,   5,   5,   5,   5,
+    0,   0,   0,   0,   0,   0,   0,   0,
+]
 
 knightstable = [
     -50, -40, -30, -30, -30, -30, -40, -50,
@@ -49,7 +50,7 @@ bishoptable = [
     -10,  0, 10, 10, 10, 10,  0,-10,
     -10, 10, 10, 10, 10, 10, 10,-10,
     -10,  5,  0,  0,  0,  0,  5,-10,
-    -20,-10,-10,-10,-10,-10,-10,-20]
+    -20,-15,-15,-15,-15,-15,-15,-20]
 
 kingtable = [
     -30,-40,-40,-50,-50,-40,-40,-30,
@@ -63,21 +64,21 @@ kingtable = [
 # Rooks prefer the 7th rank (to attack pawns) and central files
 rooktable = [
     0,  0,  0,  0,  0,  0,  0,  0,
-    5, 10, 10, 10, 10, 10, 10,  5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    0,  0,  0,  5,  5,  0,  0,  0]
+    10, 20, 20, 20, 20, 20, 20,  10,
+    -10,  0,  0,  0,  0,  0,  0, -10,
+    -10,  0,  0,  0,  0,  0,  0, -10,
+    -10,  0,  0,  0,  0,  0,  0, -10,
+    -10,  0,  0,  0,  0,  0,  0, -10,
+    -10,  0,  0,  0,  0,  0,  0, -10,
+    -10,  -5,  0,  10,  10,  0,  -5,  -10]
 
 # Queens are like Bishops + Rooks (Central dominance)
 queentable = [
     -20,-10,-10, -5, -5,-10,-10,-20,
     -10,  0,  0,  0,  0,  0,  0,-10,
     -10,  0,  5,  5,  5,  5,  0,-10,
-        -5,  0,  5,  5,  5,  5,  0, -5,
-        0,  0,  5,  5,  5,  5,  0, -5,
+    -5,  0,  5,  5,  5,  5,  0, -5,
+    0,  0,  5,  5,  5,  5,  0, -5,
     -10,  5,  5,  5,  5,  5,  0,-10,
     -10,  0,  5,  0,  0,  0,  0,-10,
     -20,-10,-10, -5, -5,-10,-10,-20]
@@ -173,11 +174,11 @@ def sort_moves(board: chess.Board, depth=0, killers=None,hash_move=None):
                     if table:
                         # Calculate: Value at Destination - Value at Start
                         if board.turn == chess.WHITE:
-                            val_from = table[move.from_square]
-                            val_to = table[move.to_square]
-                        else:
                             val_from = table[chess.square_mirror(move.from_square)]
                             val_to = table[chess.square_mirror(move.to_square)]
+                        else:
+                            val_from = table[move.from_square]
+                            val_to = table[move.to_square]
                         
                         score += (val_to - val_from)
 
@@ -206,31 +207,22 @@ def evaluate_board(board: chess.Board):
         
         # 1. Material Value
         value = PIECE_VALUES.get(piece.piece_type, 0)
-        
         # 2. Positional Score (PST)
         position_score = 0
         
         # Determine which table to use
-        if piece.piece_type == chess.PAWN:
-            table = pawntable
-        elif piece.piece_type == chess.KNIGHT:
-            table = knightstable
-        elif piece.piece_type == chess.BISHOP:
-            table = bishoptable
-        elif piece.piece_type == chess.ROOK:
-            table = rooktable
-        elif piece.piece_type == chess.QUEEN:
-            table = queentable
-        elif piece.piece_type == chess.KING:
-            table = kingtable
-        else:
-            table = [0] * 64 # Default to 0 if table missing
-            
+        if piece.piece_type == chess.PAWN: table = pawntable
+        elif piece.piece_type == chess.KNIGHT: table = knightstable
+        elif piece.piece_type == chess.BISHOP:table = bishoptable
+        elif piece.piece_type == chess.ROOK:table = rooktable
+        elif piece.piece_type == chess.QUEEN: table = queentable
+        elif piece.piece_type == chess.KING: table = kingtable
+        else: table = [0] * 64 # Default to 0 if table missing
         # Handle mirroring for Black
         if piece.color == chess.WHITE:
-            position_score = table[square]
-        else:
             position_score = table[chess.square_mirror(square)]
+        else:
+            position_score = table[square]
 
         total_piece_score = value + position_score
 
@@ -238,16 +230,22 @@ def evaluate_board(board: chess.Board):
             evaluation += total_piece_score
         else:
             evaluation -= total_piece_score
+        # print(f"Eval: {evaluation} , position score:{position_score} Sqaure: {square} pice: {piece} turn:{board.turn}")
 
     return evaluation
 
 
 def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, depth=0):
     
-    # Safety Limit: Stop Q-search if it goes too deep
-    if depth > 4: return evaluate_board(board)
-
+    key = board._transposition_key()
+    hash_move=None
+    if key in TT:
+        _, tt_move, tt_depth, _ = TT[key]
+        if tt_depth > 0:
+            hash_move = tt_move
+            
     stand_pat = evaluate_board(board)
+    if depth > 10: return stand_pat
 
     if maximizing_player:
         if stand_pat >= beta: return beta
@@ -259,23 +257,20 @@ def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, dept
 
     # In quiescence search, we evaluate forcing moves (captures, promotions) 
     # to ensure the static evaluation is on a "quiet" position.
-    legal_moves = sort_moves(board, depth, killers)
-
+    all_legal_moves = sort_moves(board, depth, killers,hash_move)
+    legal_moves=[m for m in all_legal_moves if board.is_capture(m) or m.promotion or board.gives_check(m)]
+    # legal_moves=[m for m in all_legal_moves if board.is_capture(m)]
     for move in legal_moves:
-        # We only consider captures and promotions. We must iterate through all
-        # sorted moves because a non-forcing move (like a check) might be 
-        # ordered before a capture, so we cannot break the loop early.
-        if board.is_capture(move) or move.promotion:
-            board.push(move)
-            score = quiescence(board, alpha, beta, not maximizing_player, killers, depth + 1)
-            board.pop()
+        board.push(move)
+        score = quiescence(board, alpha, beta, not maximizing_player, killers, depth + 1)
+        board.pop()
 
-            if maximizing_player:
-                if score >= beta: return beta
-                if score > alpha: alpha = score
-            else:
-                if score <= alpha: return alpha
-                if score < beta: beta = score
+        if maximizing_player:
+            if score >= beta: return beta
+            if score > alpha: alpha = score
+        else:
+            if score <= alpha: return alpha
+            if score < beta: beta = score
 
     return alpha if maximizing_player else beta
 
@@ -345,6 +340,12 @@ def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     return best_val
 
 def get_best_move_v3(board: chess.Board, depth, hash_move=None):
+    if board.fullmove_number <= 15:
+        move = book_move(board)
+        if move:
+            print(f"[Book] Played {move}")
+            return 0 , move
+
     best_moves = []
     max_eval = -math.inf
     min_eval = math.inf
@@ -382,6 +383,8 @@ def get_best_move_v3(board: chess.Board, depth, hash_move=None):
     return final_score, random.choice(best_moves)
 
 def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
+    #temp fix
+    return get_best_move_v3(board, depth, hash_move=None)[1]
     global TT, killers
 
     # Reset ONCE per move
@@ -424,3 +427,19 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
 
     return best_move
 
+def book_move(board):
+    import chess.polyglot
+    BOOK_PATH="Perfect2021.bin"
+    try:
+        with chess.polyglot.open_reader(BOOK_PATH) as reader:
+
+            # Weighted random choice (important)
+            entry = reader.weighted_choice(board)
+            if not entry:
+                return None
+            return entry.move
+    except (FileNotFoundError, IndexError) as e:
+        print(e)
+        pass
+
+    return None
