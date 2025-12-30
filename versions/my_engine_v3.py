@@ -403,7 +403,7 @@ def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     TT[key] = (best_val, best_move_this_node, depth, flag)
     return best_val
 
-def get_best_move_v3chat(board: chess.Board, depth, alpha, beta, hash_move=None):
+def get_best_move_v3(board: chess.Board, depth, alpha, beta, hash_move=None):
     # Opening book
     if board.fullmove_number <= 15:
         move = book_move(board)
@@ -446,11 +446,14 @@ def get_best_move_v3chat(board: chess.Board, depth, alpha, beta, hash_move=None)
 
         # Root cutoff (important!)
         if alpha >= beta:
+            print("root cutoff")
             break
 
     return best_eval, best_move
 
-def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
+def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
+    print("time limit",time_limit)
+    print("depth",depth)
     # return get_best_move_v3(board, depth, hash_move=None)[1]
     global TT, killers
 
@@ -465,7 +468,8 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
 
     while True:
         killers.clear()
-        if time.time() - start_time > time_limit:
+        elapsed_time=time.time()
+        if elapsed_time - start_time > time_limit:
             break
 
         window = 50
@@ -477,15 +481,15 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
             alpha = best_score - window
             beta = best_score + window
 
-        score, move = get_best_move_v3chat(board, current_depth, alpha, beta, best_move)
+        score, move = get_best_move_v3(board, current_depth, alpha, beta, best_move)
 
         # fail-low
         if score <= alpha:
-            score, move = get_best_move_v3chat(board, current_depth, -math.inf, beta, best_move)
+            score, move = get_best_move_v3(board, current_depth, -math.inf, beta, best_move)
 
         # fail-high
         elif score >= beta:
-            score, move = get_best_move_v3chat(board, current_depth, alpha, math.inf, best_move)
+            score, move = get_best_move_v3(board, current_depth, alpha, math.inf, best_move)
 
         if move is None:
             break
@@ -494,8 +498,9 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
             best_score is not None
             and move == best_move
             and ((abs(score) - abs(best_score)) < 20)
-            and current_depth >= 3
+            and current_depth >= 10
         ):
+            print("break due to similar score")
             break
         best_move = move
         best_score = score
@@ -507,6 +512,7 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
         print(f"Info: Depth {current_depth} score {score} best {move}")
         current_depth += 1
         if current_depth > depth:
+            print("break due to max depth")
             break
 
     return best_move
