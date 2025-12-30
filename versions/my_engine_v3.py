@@ -8,7 +8,8 @@ PROMOTION_BONUS = 30000      # Logic #5: Promotions are massive
 CAPTURE_BONUS = 20000        # Base bonus to separate captures from quiet moves
 KILLER_1_BONUS = 9000        # Logic #7: Killers above quiet moves
 KILLER_2_BONUS = 8000
-BAD_CAPTURE_PENALTY = 25000  # Logic #6: Enough to sink bad captures below zer
+BAD_CAPTURE_PENALTY = 25000 
+PASSED_PAWN_BONUS = 50  # Logic #6: Enough to sink bad captures below zer
 TT = {}  #Tranpostions
 killers={}
 
@@ -70,7 +71,7 @@ rooktable = [
     -10,  0,  0,  0,  0,  0,  0, -10,
     -10,  0,  0,  0,  0,  0,  0, -10,
     -10,  0,  0,  0,  0,  0,  0, -10,
-    -10,  -5,  0,  10,  10,  0,  -5,  -10]
+    -10,  0,  0,  10,  10,  0,  0,  -10]
 
 # Queens are like Bishops + Rooks (Central dominance)
 queentable = [
@@ -83,7 +84,38 @@ queentable = [
     -10,  0,  5,  0,  0,  0,  0,-10,
     -20,-10,-10, -5, -5,-10,-10,-20]
 
+king_endgame_table = [
+    -50, -40, -30, -20, -20, -30, -40, -50, 
+    -30, -20, -10,  0,   0, -10, -20, -30,  
+    -30, -10,  20,  30,  30,  20, -10, -30, 
+    -30, -10,  30,  40,  40,  30, -10, -30, 
+    -30, -10,  30,  40,  40,  30, -10, -30, 
+    -30, -10,  20,  30,  30,  20, -10, -30, 
+    -30, -30,   0,   0,   0,   0, -30, -30, 
+    -50, -30, -30, -30, -30, -30, -30, -50  
+]
 
+def is_endgame(board):
+    # True if no Queens or very few pieces left
+    queens = len(board.pieces(chess.QUEEN, chess.WHITE)) + len(board.pieces(chess.QUEEN, chess.BLACK))
+    minor_pieces = len(board.piece_map()) <= 12
+    return (queens == 0) or minor_pieces
+    
+def is_passed_pawn(board, square, color):
+    # Checks if a pawn has no opposing pawns in front of it on the same or adjacent files
+    rank = chess.square_rank(square)
+    file = chess.square_file(square)
+    enemy_pawns = board.pieces(chess.PAWN, not color)
+    
+    # Define the 'front' span based on color
+    start_rank = rank + 1 if color == chess.WHITE else 0
+    end_rank = 7 if color == chess.WHITE else rank - 1
+    
+    for r in range(start_rank, end_rank + 1):
+        for f in range(max(0, file - 1), min(8, file + 2)):
+            if (r * 8 + f) in enemy_pawns:
+                return False
+    return True
 
 def sort_moves(board: chess.Board, depth=0, killers=None,hash_move=None):
     """
@@ -193,22 +225,20 @@ def sort_moves(board: chess.Board, depth=0, killers=None,hash_move=None):
         moves.insert(0, hash_move)
     return moves
 
-
-
 def evaluate_board(board: chess.Board):
     if board.is_checkmate():
         return -9999 if board.turn else 9999
     
     if board.is_game_over(): 
         return 0
-
+    
+    is_eg = is_endgame(board)
     evaluation = 0
     for square, piece in board.piece_map().items():
         
         # 1. Material Value
         value = PIECE_VALUES.get(piece.piece_type, 0)
         # 2. Positional Score (PST)
-        position_score = 0
         
         # Determine which table to use
         if piece.piece_type == chess.PAWN: table = pawntable
@@ -216,20 +246,19 @@ def evaluate_board(board: chess.Board):
         elif piece.piece_type == chess.BISHOP:table = bishoptable
         elif piece.piece_type == chess.ROOK:table = rooktable
         elif piece.piece_type == chess.QUEEN: table = queentable
-        elif piece.piece_type == chess.KING: table = kingtable
+        elif piece.piece_type == chess.KING: table = table = king_endgame_table if is_eg else kingtable
         else: table = [0] * 64 # Default to 0 if table missing
         # Handle mirroring for Black
         if piece.color == chess.WHITE:
-            position_score = table[chess.square_mirror(square)]
+            if piece.piece_type == chess.PAWN and is_passed_pawn(board, square, chess.WHITE):
+                rank = chess.square_rank(square)
+                evaluation += PASSED_PAWN_BONUS * (rank - 1)
+            evaluation += (table[chess.square_mirror(square)] + value)
         else:
-            position_score = table[square]
-
-        total_piece_score = value + position_score
-
-        if piece.color == chess.WHITE:
-            evaluation += total_piece_score
-        else:
-            evaluation -= total_piece_score
+            if piece.piece_type == chess.PAWN and is_passed_pawn(board, square, chess.BLACK):
+                rank = chess.square_rank(square)
+                evaluation -= PASSED_PAWN_BONUS * (6 - rank)
+            evaluation -= (table[square] + value)
         # print(f"Eval: {evaluation} , position score:{position_score} Sqaure: {square} pice: {piece} turn:{board.turn}")
 
     return evaluation
@@ -237,7 +266,7 @@ def evaluate_board(board: chess.Board):
 
 def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, depth=0):
     
-    key = board._transposition_key()
+    key = (board._transposition_key(), maximizing_player)
     hash_move=None
     if key in TT:
         _, tt_move, tt_depth, _ = TT[key]
@@ -258,7 +287,7 @@ def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, dept
     # In quiescence search, we evaluate forcing moves (captures, promotions) 
     # to ensure the static evaluation is on a "quiet" position.
     all_legal_moves = sort_moves(board, depth, killers,hash_move)
-    legal_moves=[m for m in all_legal_moves if board.is_capture(m) or m.promotion or board.gives_check(m)]
+    legal_moves=[m for m in all_legal_moves if board.is_capture(m) or m.promotion]
     # legal_moves=[m for m in all_legal_moves if board.is_capture(m)]
     for move in legal_moves:
         board.push(move)
@@ -277,7 +306,7 @@ def quiescence(board: chess.Board, alpha, beta, maximizing_player, killers, dept
 def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     alpha_orig = alpha
     beta_orig = beta
-    key = board._transposition_key()
+    key = (board._transposition_key(), maximizing_player)
     hash_move=None
 
     # TT READ
@@ -292,16 +321,51 @@ def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     
     if depth == 0: return quiescence(board, alpha, beta, maximizing_player,killers=killers)
     if board.is_game_over(): return evaluate_board(board)
+    
+    if depth >= 3 and not board.is_check() and not is_endgame(board):
+        board.push(chess.Move.null())
+        score = minimax(board, depth - 1 - 2, alpha, beta, not maximizing_player)
+        board.pop()
 
+        if score >= beta:
+        # verify with reduced-depth normal search
+            v = minimax(board, depth - 1, alpha, beta, maximizing_player)
+            if v < beta: return v
+            return beta
     # Pass hash_move to sorter
     legal = sort_moves(board, depth, killers,hash_move)
 
     best_val = -math.inf if maximizing_player else math.inf
     best_move_this_node = None # Track the move!
 
-    for move in legal:
+    for i, move in enumerate(legal):
         board.push(move)
-        eval = minimax(board, depth - 1, alpha, beta, not maximizing_player)
+
+        # --- LMR LOGIC ---
+        new_depth = depth - 1
+
+        is_quiet = (
+            not board.is_capture(move)
+            and not move.promotion
+            and not board.gives_check(move)
+        )
+
+        is_killer = depth in killers and move in killers[depth]
+
+        if (
+            i >= 4                  # late move
+            and depth >= 3          # enough depth
+            and is_quiet
+            and not is_killer
+        ):
+            # tuned reduction
+            reduction = 1
+            if depth >= 6 and i >= 8:
+                reduction = 2
+
+            new_depth -= reduction
+
+        eval = minimax(board, new_depth, alpha, beta, not maximizing_player)
         board.pop()
 
         if maximizing_player:
@@ -339,57 +403,59 @@ def minimax(board: chess.Board, depth, alpha, beta, maximizing_player):
     TT[key] = (best_val, best_move_this_node, depth, flag)
     return best_val
 
-def get_best_move_v3(board: chess.Board, depth, hash_move=None):
+def get_best_move_v3chat(board: chess.Board, depth, alpha, beta, hash_move=None):
+    # Opening book
     if board.fullmove_number <= 15:
         move = book_move(board)
         if move:
             print(f"[Book] Played {move}")
-            return 0 , move
+            return 0, move
 
-    best_moves = []
-    max_eval = -math.inf
-    min_eval = math.inf
     is_white = board.turn
-    
-    # 1. Get Sorted Moves
+    best_move = None
+    best_eval = -math.inf if is_white else math.inf
+
+    # Root move ordering
     legal_moves = list(sort_moves(board, depth, killers, hash_move))
-    
     if not legal_moves:
-        return 0, None # Handle stalemate/mate check outside or return static eval
+        return 0, None
 
     for move in legal_moves:
         board.push(move)
-        eval_score = minimax(board, depth-1 , -math.inf, math.inf, not is_white)
-        board.pop()
-        
-        if is_white:
-            if eval_score > max_eval:
-                max_eval = eval_score
-                best_moves = [move]
-            elif eval_score == max_eval:
-                best_moves.append(move)
-        else:
-            if eval_score < min_eval:
-                min_eval = eval_score
-                best_moves = [move]
-            elif eval_score == min_eval:
-                best_moves.append(move)
-    
-    final_score = max_eval if is_white else min_eval
-    
-    # Safety check if best_moves is empty (rare)
-    if not best_moves: return final_score, None
-    
-    return final_score, random.choice(best_moves)
 
-def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
-    #temp fix
-    return get_best_move_v3(board, depth, hash_move=None)[1]
+        eval_score = minimax(
+            board,
+            depth - 1,
+            alpha,
+            beta,
+            not is_white
+        )
+
+        board.pop()
+
+        if is_white:
+            if eval_score > best_eval:
+                best_eval = eval_score
+                best_move = move
+            alpha = max(alpha, eval_score)
+        else:
+            if eval_score < best_eval:
+                best_eval = eval_score
+                best_move = move
+            beta = min(beta, eval_score)
+
+        # Root cutoff (important!)
+        if alpha >= beta:
+            break
+
+    return best_eval, best_move
+
+def get_best_move_iterative(board: chess.Board,depth, time_limit=30.0 ):
+    # return get_best_move_v3(board, depth, hash_move=None)[1]
     global TT, killers
 
     # Reset ONCE per move
-    TT.clear()
-    killers.clear()
+    if len(TT)>100000 :TT.clear()
 
     best_move = None
     best_score = None
@@ -398,11 +464,29 @@ def get_best_move_iterative(board: chess.Board,depth, time_limit=math.inf ):
     current_depth = 1
 
     while True:
+        killers.clear()
         if time.time() - start_time > time_limit:
             break
 
-        # Root search with previous best as hash move
-        score, move = get_best_move_v3(board, current_depth, best_move)
+        window = 50
+
+        if best_score is None:
+            alpha = -math.inf
+            beta = math.inf
+        else:
+            alpha = best_score - window
+            beta = best_score + window
+
+        score, move = get_best_move_v3chat(board, current_depth, alpha, beta, best_move)
+
+        # fail-low
+        if score <= alpha:
+            score, move = get_best_move_v3chat(board, current_depth, -math.inf, beta, best_move)
+
+        # fail-high
+        elif score >= beta:
+            score, move = get_best_move_v3chat(board, current_depth, alpha, math.inf, best_move)
+
         if move is None:
             break
 
