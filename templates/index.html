@@ -3,637 +3,962 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Python Chess Engine</title>
+    <title>Halfmind Chess Engine</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    
     <style>
         :root {
-            --bg-dark: #212529;
-            --bg-card: #2c3034;
-            --bg-darker: #1a1d20;
-            --highlight-color: yellow;
-            --text-muted: #888;
+            --bg-dark: #121212;
+            --bg-panel: #1e1e1e;
+            --accent: #4a90e2;
+            --highlight-move: rgba(255, 255, 50, 0.5);
+            --legal-hint: rgba(0, 0, 0, 0.3);
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
         }
-        
-        body { 
-            background-color: var(--bg-dark); 
-            color: white; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
         }
-        
-        #board { 
-            width: 100%; 
-            max-width: 600px; 
-            margin: 0 auto; 
+
+        /* Board Styling */
+        #board {
+            width: 100%;
+            max-width: 650px;
+            margin: 0 auto;
+            border: 3px solid #333;
+            border-radius: 4px;
         }
-        
-        .info-box { 
-            background: var(--bg-card); 
-            padding: 20px; 
-            border-radius: 10px; 
-            margin-top: 20px; 
+
+        /* Custom Highlights for Moves */
+        .highlight-last {
+            background-color: var(--highlight-move) !important;
         }
-        
-        .btn-custom { 
-            width: 100%; 
-            margin-bottom: 10px; 
+
+        /* Legal Move Hints (Dots) */
+        .legal-move-hint {
+            box-shadow: inset 0 0 3px 3px rgba(0,0,0,0.2);
+            position: relative;
         }
-        
-        .move-list { 
-            max-height: 200px; 
-            overflow-y: auto; 
-            background: var(--bg-darker); 
-            padding: 10px; 
-            border-radius: 5px; 
-            font-family: monospace; 
+        .legal-move-hint::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30%;
+            height: 30%;
+            background-color: rgba(20, 85, 30, 0.5);
+            border-radius: 50%;
         }
-        
-        .move-item { 
-            padding: 3px 8px; 
-            margin: 2px 0; 
-            border-radius: 3px; 
-            cursor: pointer; 
-            transition: background 0.2s;
+        /* Hint for captures (Ring) */
+        .legal-move-hint.capture-hint::after {
+            background-color: transparent;
+            border: 4px solid rgba(20, 85, 30, 0.5);
+            width: 85%;
+            height: 85%;
         }
-        
-        .move-item:hover { 
-            background: #3a3d40; 
-        }
-        
-        .move-number { 
-            color: var(--text-muted); 
-            margin-right: 10px; 
-            font-weight: bold;
-        }
-        
-        .white-move { 
-            color: #fff; 
-            margin-right: 10px; 
-        }
-        
-        .black-move { 
-            color: #aaa; 
-        }
-        
-        .captured-pieces { 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 5px; 
-            margin-top: 10px; 
-            min-height: 30px;
-        }
-        
-        .captured-piece { 
-            font-size: 24px; 
-            opacity: 0.7; 
-            transition: opacity 0.3s;
-        }
-        
-        .captured-piece:hover {
-            opacity: 1;
-        }
-        
-        .difficulty-btn { 
-            padding: 5px 10px; 
-            margin: 2px; 
-            font-size: 12px; 
-            transition: all 0.3s;
-        }
-        
-        .difficulty-btn.active { 
-            background: #0d6efd; 
-            border-color: #0d6efd; 
-        }
-        
-        .last-move-highlight { 
-            box-shadow: inset 0 0 3px 3px var(--highlight-color) !important; 
-        }
-        
-        .game-over-modal { 
-            position: fixed; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%); 
-            background: var(--bg-card); 
-            padding: 30px; 
-            border-radius: 15px; 
-            z-index: 1000; 
-            display: none; 
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            min-width: 300px;
-            text-align: center;
-        }
-        
-        .modal-backdrop { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0,0,0,0.7); 
-            z-index: 999; 
-            display: none; 
-        }
-        
-        .control-btn-group {
+
+        /* Header */
+        .game-header {
             display: flex;
-            gap: 8px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
             flex-wrap: wrap;
-            justify-content: center;
+            gap: 1rem;
         }
-        
-        .control-btn-group .btn {
+
+        .game-title {
+            font-weight: 300;
+            margin: 0;
+            font-size: clamp(1.5rem, 4vw, 2rem);
+        }
+
+        .game-title-accent {
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        #gameStatus {
+            font-size: clamp(0.875rem, 2vw, 1rem);
+            padding: 0.5rem 1rem;
+        }
+
+        /* Panels */
+        .info-panel {
+            background: var(--bg-panel);
+            padding: clamp(1rem, 3vw, 1.5rem);
+            border-radius: 8px;
+            border: 1px solid #333;
+            margin-bottom: 1rem;
+        }
+
+        .panel-header {
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #333;
+            padding-bottom: 0.75rem;
+            font-size: clamp(0.95rem, 2vw, 1.1rem);
+        }
+
+        /* History Log */
+        .move-history {
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: clamp(0.8rem, 1.5vw, 0.9rem);
+            background: #151515;
+            padding: 0.75rem;
+            border-radius: 4px;
+        }
+        .history-row {
+            display: flex;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #222;
+        }
+        .history-num { 
+            min-width: 30px;
+            width: 30px;
+            color: #666;
+            flex-shrink: 0;
+        }
+        .history-white { 
+            flex: 1;
+            color: #fff;
+            padding: 0 0.5rem;
+        }
+        .history-black { 
+            flex: 1;
+            color: #aaa;
+        }
+
+        /* Progress Bar */
+        .eval-bar-container {
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 1rem 0;
+            display: flex;
+        }
+        .eval-fill {
+            height: 100%;
+            background: var(--text-main);
+            transition: width 0.5s ease;
+        }
+
+        /* Buttons */
+        .btn-halfmind {
+            background-color: #2c3e50;
+            color: white;
+            border: 1px solid #34495e;
+            transition: all 0.2s ease;
+        }
+        .btn-halfmind:hover {
+            background-color: #34495e;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .btn-halfmind:active {
+            transform: translateY(0);
+        }
+
+        .btn-outline-light {
+            transition: all 0.2s ease;
+        }
+        .btn-outline-light:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(255,255,255,0.1);
+        }
+
+        .btn-secondary {
+            transition: all 0.2s ease;
+        }
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Button Groups */
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .button-group > * {
             flex: 1;
             min-width: 100px;
         }
-        
-        .spinner {
-            display: none;
-            margin-left: 10px;
+
+        .copy-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .copy-buttons .btn {
+            flex: 1;
+            min-width: 90px;
+            white-space: nowrap;
+        }
+
+        /* New Game Modal */
+        .modal-content {
+            background-color: var(--bg-panel);
+            color: var(--text-main);
+            border: 1px solid #444;
         }
         
-        .thinking .spinner {
-            display: inline-block;
+        .modal-header {
+            border-bottom: 1px solid #333;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #333;
+        }
+
+        .btn-choice {
+            width: 100%;
+            padding: clamp(1rem, 3vw, 1.5rem);
+            margin: 0.5rem 0;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+            border: 2px solid #444;
+            background: #222;
+            color: white;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+        .btn-choice:hover {
+            border-color: var(--accent);
+            background: #2a2a2a;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(74, 144, 226, 0.2);
+        }
+        .btn-choice:active {
+            transform: translateY(0);
+        }
+
+        /* Game Over Modal Enhancements */
+        #gameOverModal .modal-body {
+            padding: 2rem 1.5rem;
+        }
+
+        #gameOverMessage {
+            font-size: clamp(1rem, 2vw, 1.1rem);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        #gameOverModal .copy-buttons {
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        #gameOverModal .modal-footer {
+            padding: 1.25rem;
+        }
+
+        #gameOverModal .btn-halfmind {
+            min-width: 150px;
+            padding: 0.75rem 2rem;
+            font-size: 1.05rem;
+        }
+
+        /* Configuration Section */
+        .config-control {
+            margin-bottom: 1.25rem;
+        }
+
+        .config-control:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: clamp(0.85rem, 1.8vw, 0.95rem);
+        }
+
+        .form-range {
+            width: 100%;
+        }
+
+        /* Evaluation Section */
+        .eval-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: clamp(0.8rem, 1.5vw, 0.875rem);
+            margin-bottom: 0.5rem;
+        }
+
+        .eval-info {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .eval-info > div {
+            font-size: clamp(0.8rem, 1.5vw, 0.875rem);
+        }
+
+        /* Container adjustments */
+        .container {
+            padding-left: clamp(0.5rem, 3vw, 1rem);
+            padding-right: clamp(0.5rem, 3vw, 1rem);
+        }
+
+        /* Board container */
+        .board-container {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 991.98px) {
+            .col-lg-7, .col-lg-5 {
+                margin-bottom: 1.5rem;
+            }
+
+            #board {
+                max-width: 100%;
+            }
+
+            .info-panel {
+                margin-bottom: 1rem;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .game-header {
+                justify-content: center;
+                text-align: center;
+            }
+
+            .move-history {
+                height: 120px;
+            }
+
+            .button-group > * {
+                min-width: 80px;
+            }
+
+            .modal-dialog {
+                margin: 0.5rem;
+            }
+
+            .btn-choice {
+                margin: 0.35rem 0;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .copy-buttons {
+                flex-direction: column;
+            }
+
+            .copy-buttons .btn {
+                width: 100%;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .button-group > * {
+                width: 100%;
+                min-width: 100%;
+            }
+
+            .eval-info {
+                gap: 1rem;
+            }
+        }
+
+        /* Toast notification improvements */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--accent);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+            font-size: clamp(0.875rem, 2vw, 1rem);
+            max-width: 90%;
+            text-align: center;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translate(-50%, 20px);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
+
+        /* Scrollbar styling */
+        .move-history::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .move-history::-webkit-scrollbar-track {
+            background: #0a0a0a;
+            border-radius: 4px;
+        }
+
+        .move-history::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        .move-history::-webkit-scrollbar-thumb:hover {
+            background: #444;
         }
     </style>
 </head>
 <body>
 
-<!-- Game Over Modal -->
-<div class="modal-backdrop" id="modalBackdrop"></div>
-<div class="game-over-modal" id="gameOverModal">
-    <h2 id="gameOverTitle">Game Over!</h2>
-    <p id="gameOverMessage" style="font-size: 1.2em; margin: 20px 0;"></p>
-    <div class="d-flex gap-2 justify-content-center">
-        <button class="btn btn-primary" onclick="ChessUI.closeModal(); ChessUI.resetGame();">New Game</button>
-        <button class="btn btn-secondary" onclick="ChessUI.closeModal();">Close</button>
+<div class="modal fade" id="newGameModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Start New Game</h5>
+            </div>
+            <div class="modal-body text-center">
+                <p class="mb-4">Choose your side against Halfmind</p>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <button class="btn btn-choice" onclick="ChessUI.startNewGame('white')">
+                            Play as White
+                        </button>
+                    </div>
+                    <div class="col-sm-6">
+                        <button class="btn btn-choice" onclick="ChessUI.startNewGame('black')">
+                            Play as Black
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="container mt-5">
+<!-- Game Over Modal -->
+<div class="modal fade" id="gameOverModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gameOverTitle">Game Over</h5>
+            </div>
+            <div class="modal-body text-center">
+                <p id="gameOverMessage"></p>
+                <div class="copy-buttons">
+                    <button class="btn btn-secondary" onclick="ChessUI.copyPGN()">Copy PGN</button>
+                    <button class="btn btn-secondary" onclick="ChessUI.copyFEN()">Copy FEN</button>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button class="btn btn-halfmind" onclick="ChessUI.confirmNewGame()">Play Again</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="container mt-3 mt-md-4">
     <div class="row">
-        <!-- Board Section -->
-        <div class="col-md-7 text-center">
-            <h2 class="mb-4">♟️ Play Against Python AI</h2>
-            <div id="board"></div>
+        <div class="col-lg-7 mb-4">
+            <div class="game-header">
+                <h3 class="game-title">Halfmind <span class="game-title-accent">Engine</span></h3>
+                <span class="badge bg-secondary" id="gameStatus">Waiting</span>
+            </div>
             
-            <!-- Control Buttons -->
-            <div class="mt-3 control-btn-group">
-                <button class="btn btn-sm btn-secondary" onclick="ChessUI.undoMove()" title="Undo last move">
-                    ↶ Undo
-                </button>
-                <button class="btn btn-sm btn-secondary" onclick="ChessUI.flipBoard()" title="Flip board orientation">
-                    ⇅ Flip
-                </button>
-                <button class="btn btn-sm btn-secondary" onclick="ChessUI.copyFEN()" title="Copy FEN to clipboard">
-                    📋 FEN
-                </button>
-                <button class="btn btn-sm btn-secondary" onclick="ChessUI.downloadPGN()" title="Download game as PGN">
-                    💾 PGN
-                </button>
+            <div class="board-container">
+                <div id="board"></div>
             </div>
         </div>
 
-        <!-- Info Panel Section -->
-        <div class="col-md-5">
-            <!-- Engine Settings -->
-            <div class="info-box">
-                <h4>⚙️ Engine Settings</h4>
-                
-                <div class="mb-3">
-                    <label class="mb-1">Difficulty Presets:</label><br>
-                    <button class="btn btn-sm btn-outline-light difficulty-btn" onclick="ChessUI.setDifficulty(1, 0.5)">Beginner</button>
-                    <button class="btn btn-sm btn-outline-light difficulty-btn" onclick="ChessUI.setDifficulty(2, 1.0)">Easy</button>
-                    <button class="btn btn-sm btn-outline-light difficulty-btn active" onclick="ChessUI.setDifficulty(3, 1.0)">Medium</button>
-                    <button class="btn btn-sm btn-outline-light difficulty-btn" onclick="ChessUI.setDifficulty(4, 2.0)">Hard</button>
-                    <button class="btn btn-sm btn-outline-light difficulty-btn" onclick="ChessUI.setDifficulty(6, 5.0)">Expert</button>
+        <div class="col-lg-5">
+            
+            <div class="info-panel">
+                <div class="panel-header">Evaluation</div>
+                <div class="eval-labels text-muted">
+                    <span>Black</span>
+                    <span id="evalValue">0.0</span>
+                    <span>White</span>
                 </div>
-                
-                <label>Search Depth: <span id="depthVal">3</span></label>
-                <input type="range" class="form-range" id="depth" min="1" max="10" value="3" 
-                       oninput="ChessUI.updateDepthDisplay(this.value)">
-                
-                <label>Time Limit (s): <span id="timeVal">1.0</span></label>
-                <input type="range" class="form-range" id="time_limit" min="0.1" max="5.0" step="0.1" value="1.0" 
-                       oninput="ChessUI.updateTimeDisplay(this.value)">
-                
-                <button class="btn btn-warning btn-custom" onclick="ChessUI.resetGame()">🔄 New Game</button>
-            </div>
-
-            <!-- Status Box -->
-            <div class="info-box">
-                <h4>📊 Status</h4>
-                <p><strong>Evaluation:</strong> <span id="eval">0</span></p>
-                <p><strong>Engine Time:</strong> <span id="thinkTime">-</span></p>
-                <p class="thinking">
-                    <strong>Status:</strong> <span id="status">Your Turn</span>
-                    <span class="spinner-border spinner-border-sm spinner" role="status"></span>
-                </p>
-                
-                <div class="progress" style="height: 25px;">
-                    <div id="evalBar" class="progress-bar bg-success" role="progressbar" style="width: 50%;"></div>
+                <div class="eval-bar-container">
+                    <div class="eval-fill" id="evalBar" style="width: 50%;"></div>
                 </div>
-                <small class="text-muted d-block text-center mt-1">Black &lt;--- Advantage ---&gt; White</small>
-            </div>
-
-            <!-- Captured Pieces -->
-            <div class="info-box">
-                <h4>🎯 Captured Pieces</h4>
-                <div>
-                    <strong>By White:</strong>
-                    <div class="captured-pieces" id="capturedByWhite"></div>
-                </div>
-                <div class="mt-2">
-                    <strong>By Black:</strong>
-                    <div class="captured-pieces" id="capturedByBlack"></div>
+                <div class="eval-info text-muted">
+                    <div id="engineDepth">Depth: 3</div>
+                    <div id="thinkTime">Time: -</div>
                 </div>
             </div>
 
-            <!-- Move History -->
-            <div class="info-box">
-                <h4>📜 Move History</h4>
-                <div class="move-list" id="moveHistory">
-                    <small class="text-muted">Moves will appear here...</small>
+            <div class="info-panel">
+                <div class="panel-header">Configuration</div>
+                
+                <div class="config-control">
+                    <label class="form-label">Search Depth: <span id="depthVal">3</span></label>
+                    <input type="range" class="form-range" id="depth" min="1" max="8" value="3" 
+                        oninput="document.getElementById('depthVal').innerText = this.value">
+                </div>
+                
+                <div class="config-control">
+                    <label class="form-label">Thinking Time (s): <span id="timeVal">10</span></label>
+                    <input type="range" class="form-range" id="time_limit" min="5.0" max="50.0" step="1.0" value="10" 
+                        oninput="document.getElementById('timeVal').innerText = this.value">
+                </div>
+                
+                <div class="button-group mt-3">
+                    <button class="btn btn-sm btn-outline-light" onclick="ChessUI.confirmNewGame()">New Game</button>
+                    <button class="btn btn-sm btn-outline-light" onclick="ChessUI.undoMove()">Undo</button>
+                    <button class="btn btn-sm btn-outline-light" onclick="ChessUI.flipBoard()">Flip</button>
                 </div>
             </div>
+
+            <div class="info-panel">
+                <div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Move History</span>
+                    <div class="copy-buttons">
+                        <button class="btn btn-sm btn-secondary" onclick="ChessUI.copyPGN()">Copy PGN</button>
+                        <button class="btn btn-sm btn-secondary" onclick="ChessUI.copyFEN()">Copy FEN</button>
+                    </div>
+                </div>
+                <div class="move-history" id="moveHistory">
+                    <div class="text-center text-muted mt-4">Move history will appear here</div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
 <script>
-// ============================================
-// CONFIGURATION & CONSTANTS
-// ============================================
+/**
+ * HALFMIND CHESS FRONTEND
+ * Handles Game Logic, UI, and API Communication
+ */
+
 const CONFIG = {
     API_URL: window.location.origin,
-    DEFAULT_DEPTH: 3,
-    DEFAULT_TIME_LIMIT: 1.0,
     PIECE_THEME: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
 };
 
-const PIECE_SYMBOLS = {
-    'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚',
-    'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔'
-};
-
-// ============================================
-// GAME STATE
-// ============================================
 const GameState = {
     board: null,
     game: new Chess(),
+    playerColor: 'w', // 'w' or 'b'
+    isEngineThinking: false,
     moveHistory: [],
-    lastMoveSquares: [],
-    boardOrientation: 'white',
-    isProcessing: false,
-    
-    reset() {
-        this.game.reset();
-        this.moveHistory = [];
-        this.lastMoveSquares = [];
-        this.isProcessing = false;
-    }
+    selectedSquare: null // For click-to-move
 };
 
-// ============================================
-// API COMMUNICATION
-// ============================================
-const ChessAPI = {
-    async makeMove(move, depth, timeLimit) {
-        const response = await $.ajax({
-            url: `${CONFIG.API_URL}/move`,
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                move: move,
-                depth: depth,
-                time_limit: timeLimit
-            })
-        });
-        return response;
-    },
-    
-    async resetGame() {
-        const response = await $.post(`${CONFIG.API_URL}/reset`);
-        return response;
-    },
-    
-    async undoMove() {
-        const response = await $.post(`${CONFIG.API_URL}/undo`);
-        return response;
-    }
-};
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        if (toast.parentElement) {
+            document.body.removeChild(toast);
+        }
+    }, 2000);
+}
 
-// ============================================
-// UI UPDATES
-// ============================================
+// =========================================================
+//  CHESS LOGIC & UI HANDLERS
+// =========================================================
+
 const ChessUI = {
-    updateStatus(msg, showSpinner = false) {
-        $('#status').text(msg);
-        const statusContainer = $('#status').parent();
-        if (showSpinner) {
-            statusContainer.addClass('thinking');
-        } else {
-            statusContainer.removeClass('thinking');
-        }
-    },
-    
-    updateEvalBar(score) {
-        const clamped = Math.max(-1000, Math.min(1000, score));
-        const percent = ((clamped + 1000) / 2000) * 100;
-        $('#evalBar').css('width', percent + '%');
+init() {
+        const config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: CONFIG.PIECE_THEME
+            // REMOVED: onSquareClick (it doesn't work in v1.0.0)
+        };
         
-        // Change color based on advantage
-        if (percent > 60) {
-            $('#evalBar').removeClass('bg-danger bg-warning').addClass('bg-success');
-        } else if (percent < 40) {
-            $('#evalBar').removeClass('bg-success bg-warning').addClass('bg-danger');
-        } else {
-            $('#evalBar').removeClass('bg-success bg-danger').addClass('bg-warning');
-        }
-    },
-    
-    updateDepthDisplay(val) {
-        $('#depthVal').text(val);
-        $('.difficulty-btn').removeClass('active');
-    },
-    
-    updateTimeDisplay(val) {
-        $('#timeVal').text(val);
-        $('.difficulty-btn').removeClass('active');
-    },
-    
-    addMoveToHistory(move) {
-        GameState.moveHistory.push(move);
-        this.renderMoveHistory();
-    },
-    
-    renderMoveHistory() {
-        if (GameState.moveHistory.length === 0) {
-            $('#moveHistory').html('<small class="text-muted">Moves will appear here...</small>');
-            return;
-        }
+        GameState.board = Chessboard('board', config);
         
-        let html = '';
-        for (let i = 0; i < GameState.moveHistory.length; i += 2) {
-            const num = Math.floor(i / 2) + 1;
-            const whiteMove = GameState.moveHistory[i].san;
-            const blackMove = GameState.moveHistory[i + 1] ? GameState.moveHistory[i + 1].san : '';
-            html += `<div class="move-item">
-                <span class="move-number">${num}.</span>
-                <span class="white-move">${whiteMove}</span>
-                <span class="black-move">${blackMove}</span>
-            </div>`;
-        }
+        // --- NEW: Manually attach click event for Click-to-Move ---
+        $('#board').on('click', '.square-55d63', function() {
+            const square = $(this).attr('data-square');
+            handleSquareClick(square);
+        });
+        // ----------------------------------------------------------
+
+        const modal = new bootstrap.Modal(document.getElementById('newGameModal'));
+        modal.show();
+    },
+
+    startNewGame(color) {
+        GameState.playerColor = color === 'white' ? 'w' : 'b';
+        GameState.game.reset();
+        GameState.board.start();
+        GameState.board.orientation(color);
+        GameState.moveHistory = [];
+        GameState.selectedSquare = null;
         
-        $('#moveHistory').html(html);
-        $('#moveHistory').scrollTop($('#moveHistory')[0].scrollHeight);
-    },
-    
-    updateCapturedPieces(move) {
-        if (move.captured) {
-            const piece = PIECE_SYMBOLS[move.color === 'w' ? move.captured.toLowerCase() : move.captured.toUpperCase()];
-            const targetId = move.color === 'w' ? 'capturedByWhite' : 'capturedByBlack';
-            $(`#${targetId}`).append(`<span class="captured-piece">${piece}</span>`);
-        }
-    },
-    
-    rebuildCapturedPieces() {
-        $('#capturedByWhite').html('');
-        $('#capturedByBlack').html('');
-        GameState.moveHistory.forEach(move => this.updateCapturedPieces(move));
-    },
-    
-    highlightMove(from, to) {
+        this.updateHistoryUI();
+        this.updateEvalUI(0, 0);
         this.removeHighlights();
-        $(`#board .square-${from}`).addClass('last-move-highlight');
-        $(`#board .square-${to}`).addClass('last-move-highlight');
-        GameState.lastMoveSquares = [from, to];
-    },
-    
-    removeHighlights() {
-        $('#board .square-55d63').removeClass('last-move-highlight');
-    },
-    
-    showGameOver() {
-        const game = GameState.game;
-        let message = '';
+        $('#gameStatus').text("Active").removeClass('bg-danger bg-success bg-warning text-dark').addClass('bg-secondary');
+
+        const newGameModal = bootstrap.Modal.getInstance(document.getElementById('newGameModal'));
+        if (newGameModal) newGameModal.hide();
         
-        if (game.in_checkmate()) {
-            message = game.turn() === 'w' ? '🏆 Black wins by checkmate!' : '🏆 White wins by checkmate!';
-        } else if (game.in_stalemate()) {
-            message = '🤝 Draw by stalemate';
-        } else if (game.in_threefold_repetition()) {
-            message = '🤝 Draw by threefold repetition';
-        } else if (game.insufficient_material()) {
-            message = '🤝 Draw by insufficient material';
-        } else if (game.in_draw()) {
-            message = '🤝 Draw';
+        const gameOverModalEl = document.getElementById('gameOverModal');
+        const gameOverModal = bootstrap.Modal.getInstance(gameOverModalEl);
+        if (gameOverModal) {
+           gameOverModal.hide();
         }
-        
-        $('#gameOverTitle').text('Game Over!');
-        $('#gameOverMessage').text(message);
-        $('#gameOverModal').fadeIn(300);
-        $('#modalBackdrop').fadeIn(300);
-        this.updateStatus(message);
-    },
-    
-    closeModal() {
-        $('#gameOverModal').fadeOut(300);
-        $('#modalBackdrop').fadeOut(300);
-    },
-    
-    // Action Methods
-    setDifficulty(depth, timeLimit) {
-        $('#depth').val(depth);
-        $('#time_limit').val(timeLimit);
-        this.updateDepthDisplay(depth);
-        this.updateTimeDisplay(timeLimit);
-        
-        $('.difficulty-btn').removeClass('active');
-        event.target.classList.add('active');
-    },
-    
-    async undoMove() {
-        if (GameState.moveHistory.length >= 2 && !GameState.isProcessing) {
-            GameState.game.undo(); // Undo AI move
-            GameState.game.undo(); // Undo player move
-            GameState.moveHistory.pop();
-            GameState.moveHistory.pop();
-            
-            GameState.board.position(GameState.game.fen());
-            this.removeHighlights();
-            this.rebuildCapturedPieces();
-            this.renderMoveHistory();
-            this.updateStatus("Move undone");
+
+        if (GameState.playerColor === 'b') {
+            triggerEngineMove();
         }
     },
-    
+
+    confirmNewGame() {
+        const gameOverModalEl = document.getElementById('gameOverModal');
+        const gameOverModal = bootstrap.Modal.getInstance(gameOverModalEl);
+        
+        const showNewGameModal = () => {
+            const modal = new bootstrap.Modal(document.getElementById('newGameModal'));
+            modal.show();
+        };
+
+        if (gameOverModal && gameOverModalEl.classList.contains('show')) {
+            gameOverModalEl.addEventListener('hidden.bs.modal', showNewGameModal, { once: true });
+            gameOverModal.hide();
+        } else {
+            showNewGameModal();
+        }
+    },
+
     flipBoard() {
         GameState.board.flip();
-        GameState.boardOrientation = GameState.board.orientation();
     },
-    
+
+    undoMove() {
+        if (GameState.isEngineThinking || GameState.game.game_over()) return;
+        
+        GameState.game.undo();
+        GameState.game.undo();
+        
+        GameState.board.position(GameState.game.fen());
+        this.removeHighlights();
+        this.updateHistoryUI();
+        $('#gameStatus').text("Your Turn").removeClass('bg-danger bg-warning text-dark').addClass('bg-secondary');
+    },
+
+    copyPGN() {
+        const pgn = GameState.game.pgn();
+        navigator.clipboard.writeText(pgn).then(() => {
+            showToast("PGN copied to clipboard!");
+        }).catch(err => {
+            console.error('Failed to copy PGN: ', err);
+            prompt("Copy PGN:", pgn);
+        });
+    },
+
     copyFEN() {
         const fen = GameState.game.fen();
         navigator.clipboard.writeText(fen).then(() => {
-            this.updateStatus("✓ FEN copied to clipboard!");
-            setTimeout(() => this.updateStatus("Your Turn"), 2000);
+            showToast("FEN copied to clipboard!");
         }).catch(err => {
-            console.error('Failed to copy:', err);
-            this.updateStatus("Failed to copy FEN");
+            console.error('Failed to copy FEN: ', err);
+            prompt("Copy FEN:", fen);
         });
     },
-    
-    downloadPGN() {
-        const pgn = GameState.game.pgn();
-        const blob = new Blob([pgn], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chess_game_${new Date().toISOString().split('T')[0]}.pgn`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+
+    highlightSquare(square) {
+        const $square = $('#board .square-' + square);
+        $square.addClass('highlight-last');
     },
-    
-    async resetGame() {
-        try {
-            await ChessAPI.resetGame();
-            GameState.reset();
-            GameState.board.start();
-            
-            this.updateStatus("New Game Started");
-            $('#eval').text("0");
-            $('#thinkTime').text("-");
-            this.updateEvalBar(0);
-            $('#moveHistory').html('<small class="text-muted">Moves will appear here...</small>');
-            $('#capturedByWhite').html('');
-            $('#capturedByBlack').html('');
-            this.removeHighlights();
-        } catch (error) {
-            console.error('Reset error:', error);
-            this.updateStatus("Reset failed");
+
+    removeHighlights() {
+        $('#board .square-55d63').removeClass('highlight-last');
+        $('#board .square-55d63').removeClass('legal-move-hint');
+        $('#board .square-55d63').removeClass('capture-hint');
+    },
+
+    showLegalMoves(square) {
+        const moves = GameState.game.moves({ square: square, verbose: true });
+        if (moves.length === 0) return;
+
+        moves.forEach(move => {
+            const $square = $('#board .square-' + move.to);
+            $square.addClass('legal-move-hint');
+            if (move.captured) $square.addClass('capture-hint');
+        });
+    },
+
+    updateEvalUI(score, time) {
+        let displayScore = (score / 100).toFixed(2);
+        $('#evalValue').text(score > 0 ? `+${displayScore}` : displayScore);
+        
+        const clamped = Math.max(-1000, Math.min(1000, score));
+        const percent = ((clamped + 1000) / 2000) * 100;
+        
+        $('#evalBar').css('width', `${percent}%`);
+        
+        if (percent > 55) $('#evalBar').css('background-color', '#fff');
+        else if (percent < 45) $('#evalBar').css('background-color', '#444');
+        else $('#evalBar').css('background-color', '#888');
+
+        $('#thinkTime').text(`Time: ${time}`);
+    },
+
+    updateHistoryUI() {
+        const history = GameState.game.history();
+        const $container = $('#moveHistory');
+        
+        if (history.length === 0) {
+            $container.html('<div class="text-muted text-center mt-4">Game not started</div>');
+            return;
         }
+
+        let html = '';
+        for (let i = 0; i < history.length; i += 2) {
+            const num = (i / 2) + 1;
+            const w = history[i];
+            const b = history[i+1] || '';
+            
+            html += `
+                <div class="history-row">
+                    <div class="history-num">${num}.</div>
+                    <div class="history-white">${w}</div>
+                    <div class="history-black">${b}</div>
+                </div>
+            `;
+        }
+        $container.html(html);
+        $container.scrollTop($container[0].scrollHeight);
+    },
+
+    handleGameOver(resultText) {
+        let title, msg;
+        
+        if (GameState.game.in_checkmate()) {
+            title = 'Checkmate!';
+            const winner = GameState.game.turn() === 'w' ? 'Black' : 'White';
+            msg = `${winner} wins by checkmate.`;
+        } else if (GameState.game.in_stalemate()) {
+            title = 'Stalemate!';
+            msg = 'The game is a draw by stalemate.';
+        } else if (GameState.game.in_draw()) {
+            title = 'Draw!';
+            if (GameState.game.in_threefold_repetition()) {
+                msg = 'The game is a draw by threefold repetition.';
+            } else if (GameState.game.insufficient_material()) {
+                msg = 'The game is a draw by insufficient material.';
+            } else {
+                msg = 'The game is a draw.';
+            }
+        } else {
+            title = resultText || 'Game Over';
+            msg = `Game ended: ${resultText}`;
+        }
+
+        $('#gameStatus').text(title).removeClass('bg-secondary bg-warning text-dark').addClass('bg-danger');
+
+        const modalEl = document.getElementById('gameOverModal');
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            $('#gameOverTitle').text(title);
+            $('#gameOverMessage').text(msg);
+            modal.show();
+        }
+    },
+
+    checkGameOver() {
+        if (GameState.game.game_over()) {
+            this.handleGameOver();
+            return true;
+        }
+        return false;
     }
 };
 
-// ============================================
-// CHESS BOARD HANDLERS
-// ============================================
-function onDragStart(source, piece, position, orientation) {
-    // Prevent moving if game is over or processing
-    if (GameState.game.game_over() || GameState.isProcessing) return false;
+// =========================================================
+//  INTERACTION LOGIC (Drag & Drop + Click)
+// =========================================================
+
+function onDragStart(source, piece) {
+    if (GameState.game.game_over() || GameState.isEngineThinking) return false;
     
-    // Prevent moving opponent's pieces
-    if ((GameState.boardOrientation === 'white' && piece.search(/^b/) !== -1) ||
-        (GameState.boardOrientation === 'black' && piece.search(/^w/) !== -1)) {
+    // Allow dragging only own pieces
+    // (If we return false here, the standard click event fires, allowing captures)
+    if ((GameState.playerColor === 'w' && piece.search(/^b/) !== -1) ||
+        (GameState.playerColor === 'b' && piece.search(/^w/) !== -1)) {
         return false;
     }
 }
 
-async function onDrop(source, target) {
-    if (GameState.isProcessing) return 'snapback';
-    
+function onDrop(source, target) {
+    // --- FIX: Detect if piece is dropped on the same square ---
+    // If source matches target, the user clicked/released on the same spot.
+    // We treat this as a "Click" to select the piece.
+    if (source === target) {
+        handleSquareClick(source);
+        return 'snapback';
+    }
+    // ----------------------------------------------------------
+
     ChessUI.removeHighlights();
     
-    // Try to make the move
+    // Attempt the move (Drag & Drop interaction)
     const move = GameState.game.move({
         from: source,
         to: target,
         promotion: 'q'
     });
 
+    // If illegal move, snap piece back
     if (move === null) return 'snapback';
 
-    // Update UI for player move
-    ChessUI.updateCapturedPieces(move);
-    ChessUI.addMoveToHistory(move);
-    ChessUI.highlightMove(source, target);
-    ChessUI.updateStatus("Thinking...", true);
-    
-    GameState.isProcessing = true;
-    
-    try {
-        const depth = $('#depth').val();
-        const timeLimit = $('#time_limit').val();
-        const response = await ChessAPI.makeMove(
-            source + target + (move.promotion ? move.promotion : ''),
-            depth,
-            timeLimit
-        );
-        
-        if (response.status === 'success') {
-            const uci = response.best_move;
-            const aiMove = GameState.game.move({
-                from: uci.slice(0, 2),
-                to: uci.slice(2, 4),
-                promotion: uci.length === 5 ? uci[4] : undefined
-            });
-            console.log(response)
-            GameState.board.position(GameState.game.fen());
-            
-            if (aiMove) {
-                ChessUI.updateCapturedPieces(aiMove);
-                ChessUI.addMoveToHistory(aiMove);
-                ChessUI.highlightMove(aiMove.from, aiMove.to);
-            }
-            
-            $('#eval').text(response.eval);
-            $('#thinkTime').text(response.time);
-            ChessUI.updateEvalBar(response.eval);
-            ChessUI.updateStatus("Your Turn");
-            
-            if (GameState.game.game_over()) {
-                ChessUI.showGameOver();
-            }
-        } else if (response.status === 'game_over') {
-            ChessUI.showGameOver();
-        } else {
-            ChessUI.updateStatus("Error: " + response.status);
-            GameState.game.undo();
-            GameState.board.position(GameState.game.fen());
-        }
-    } catch (error) {
-        console.error("Server Error:", error);
-        alert("Server Error! Check your Python terminal.\n\nDetails: " + error.statusText);
-        ChessUI.updateStatus("Connection Error!");
-        GameState.game.undo();
-        GameState.board.position(GameState.game.fen());
-    } finally {
-        GameState.isProcessing = false;
-    }
+    handlePlayerMoveMade(move);
 }
 
 function onSnapEnd() {
     GameState.board.position(GameState.game.fen());
 }
 
-// ============================================
-// INITIALIZATION
-// ============================================
-$(document).ready(function() {
-    const config = {
-        draggable: true,
-        position: 'start',
-        onDragStart: onDragStart,
-        onDrop: onDrop,
-        onSnapEnd: onSnapEnd,
-        pieceTheme: CONFIG.PIECE_THEME
-    };
-    
-    GameState.board = Chessboard('board', config);
-    ChessUI.updateStatus("Your Turn");
-    
-    console.log('♟️ Chess Engine Initialized');
-    console.log('🎮 Ready to play!');
-});
-</script>
+// 2. CLICK TO MOVE LOGIC
+function handleSquareClick(square) {
+    if (GameState.game.game_over() || GameState.isEngineThinking) return;
 
+    // A. If clicking the same square -> Deselect
+    if (GameState.selectedSquare === square) {
+        GameState.selectedSquare = null;
+        ChessUI.removeHighlights();
+        return;
+    }
+
+    // B. If a square was already selected, try to move there
+    if (GameState.selectedSquare) {
+        const move = GameState.game.move({
+            from: GameState.selectedSquare,
+            to: square,
+            promotion: 'q'
+        });
+
+        // If valid move
+        if (move !== null) {
+            GameState.board.position(GameState.game.fen());
+            handlePlayerMoveMade(move);
+            GameState.selectedSquare = null;
+            return; // Move complete
+        }
+    }
+
+    // C. Select a new piece (if it belongs to player)
+    const pieceOnSquare = GameState.game.get(square);
+    if (pieceOnSquare && pieceOnSquare.color === GameState.playerColor) {
+        GameState.selectedSquare = square;
+        ChessUI.removeHighlights();
+        ChessUI.highlightSquare(square); // Highlight source
+        ChessUI.showLegalMoves(square); // Show dots
+    }
+}
+// =========================================================
+//  GAME FLOW & API
+// =========================================================
+
+function handlePlayerMoveMade(move) {
+    ChessUI.removeHighlights();
+    ChessUI.highlightSquare(move.from);
+    ChessUI.highlightSquare(move.to);
+    ChessUI.updateHistoryUI();
+    
+    if (ChessUI.checkGameOver()) return;
+
+    triggerEngineMove();
+}
+
+function triggerEngineMove() {
+    GameState.isEngineThinking = true;
+    $('#gameStatus').text("Halfmind is thinking...").addClass('bg-warning text-dark').removeClass('bg-secondary');
+
+    const fen = GameState.game.fen();
+    const depth = $('#depth').val();
+    const timeLimit = $('#time_limit').val();
+
+    $.ajax({
+        url: `${CONFIG.API_URL}/move`,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ fen, depth, time_limit: timeLimit }),
+        success: function(response) {
+            if (response.status === 'success' || response.status === 'game_over') {
+                
+                if (response.best_move) {
+                    const uci = response.best_move;
+                    const from = uci.substring(0, 2);
+                    const to = uci.substring(2, 4);
+                    const promotion = uci.length > 4 ? uci.substring(4) : undefined;
+
+                    const move = GameState.game.move({ from, to, promotion });
+                    GameState.board.position(GameState.game.fen());
+                    
+                    ChessUI.highlightSquare(from);
+                    ChessUI.highlightSquare(to);
+                }
+
+                ChessUI.updateEvalUI(response.eval, response.time);
+                ChessUI.updateHistoryUI();
+
+                if (response.status === 'game_over') {
+                    ChessUI.handleGameOver(response.result);
+                } else {
+                    ChessUI.checkGameOver();
+                }
+            }
+        },
+        error: function(err) {
+            console.error(err);
+            alert("Engine Error. Check terminal.");
+        },
+        complete: function() {
+            GameState.isEngineThinking = false;
+            if (!GameState.game.game_over()) {
+                $('#gameStatus').text("Your Turn").removeClass('bg-warning text-dark').addClass('bg-secondary');
+            }
+        }
+    });
+}
+
+$(document).ready(function() {
+    ChessUI.init();
+});
+
+</script>
 </body>
 </html>
