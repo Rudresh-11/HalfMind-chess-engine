@@ -431,6 +431,77 @@
         .move-history::-webkit-scrollbar-thumb:hover {
             background: #444;
         }
+                /* =========================
+        Professional Footer
+        ========================= */
+
+        .site-footer {
+            background: #0d0d0d;
+            border-top: 1px solid #222;
+            margin-top: 3rem;
+            padding: 1.5rem 1rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 1.5rem;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .footer-left {
+            max-width: 600px;
+        }
+
+        .footer-title {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-main);
+        }
+
+        .footer-tagline {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            line-height: 1.4;
+        }
+
+        .footer-right {
+            text-align: right;
+        }
+
+        .footer-link {
+            display: inline-block;
+            font-size: 0.85rem;
+            color: var(--accent);
+            text-decoration: none;
+            margin-bottom: 0.25rem;
+        }
+
+        .footer-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer-author {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Mobile footer alignment */
+        @media (max-width: 576px) {
+            .footer-content {
+                text-align: center;
+                justify-content: center;
+            }
+
+            .footer-right {
+                text-align: center;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -960,5 +1031,28 @@ $(document).ready(function() {
 });
 
 </script>
+<footer class="site-footer">
+  <div class="footer-content">
+    <div class="footer-left">
+      <div class="footer-title">Halfmind Chess Engine</div>
+      <div class="footer-tagline">
+        A handcrafted Python chess engine with a strong opening and middlegame —
+        sometimes forgetful, always interesting.
+      </div>
+    </div>
+
+    <div class="footer-right">
+      <a href="https://github.com/Rudresh-11/HalfMind-chess-engine"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="footer-link">
+        GitHub Repository
+      </a>
+      <div class="footer-author">
+        © 2025 Rudresh Suryawanshi
+      </div>
+    </div>
+  </div>
+</footer>
 </body>
 </html>

@@ -62,7 +62,11 @@ The engine is wrapped in a Flask-based web application with a modern UI.
 
 ---
 
+## Live Demo
 
+Experience HalfMind Chess Engine live: [https://halfmind-chess-engine.onrender.com/](https://halfmind-chess-engine.onrender.com/)
+
+---
 
 ## Running Locally
 
